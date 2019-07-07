@@ -341,7 +341,7 @@ class EncoderDecoder(nn.Block):
 
 
 class Generator(nn.Block):
-    "Define standard linear + softmax generation step."
+    "Define standard linear + softmax generation step." #mapping to tgt vocab
     def __init__(self, d_model, vocab):
         super(Generator, self).__init__()
         self.proj = nn.Dense(in_units=d_model, units=vocab,flatten=False)

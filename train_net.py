@@ -103,8 +103,9 @@ class SimpleLossCompute:
             loss.backward()
         return loss[0] * norm
 
-
-def run_epoch(data_iter, model, loss_compute, trainer = None, lr_sch=None):
+import gluonnlp as nlp
+import data_gen as datagen
+def run_epoch(data_iter, model, loss_compute, generator = None, trainer = None, lr_sch=None):
     "Standard Training and Logging Function"
     start = time.time()
     total_tokens = 0
@@ -114,7 +115,10 @@ def run_epoch(data_iter, model, loss_compute, trainer = None, lr_sch=None):
         train_mode = False
     else:
         train_mode = True
+    output = []
     for i, batch in enumerate(data_iter):
+        if isinstance(data_iter, nlp.data.ShardedDataLoader) or isinstance(data_iter,gluon.data.DataLoader):
+            batch = datagen.Batch( batch[0].astype(np.float32), batch[1].astype(np.float32), cfg.pad_val )
         if lr_sch and trainer:
             lr = lr_sch.update()
             trainer.set_learning_rate(lr)
@@ -122,6 +126,8 @@ def run_epoch(data_iter, model, loss_compute, trainer = None, lr_sch=None):
             out = model(batch.src.as_in_context(cfg.ctx), batch.trg.as_in_context(cfg.ctx),batch.src_mask.as_in_context(cfg.ctx), batch.trg_mask.as_in_context(cfg.ctx))
             loss = loss_compute(out, batch.trg_y.as_in_context(cfg.ctx), batch.ntokens.as_in_context(cfg.ctx), train_mode)
         total_loss += loss
+        if generator:
+            output.append( generator(out).as_in_context(mx.cpu(0)) )
         total_tokens += batch.ntokens
         tokens += batch.ntokens
         if trainer:
@@ -135,7 +141,7 @@ def run_epoch(data_iter, model, loss_compute, trainer = None, lr_sch=None):
                     (i,LR, loss.asnumpy()[0] / batch.ntokens.asnumpy()[0], tokens.asnumpy()[0] / elapsed))
             start = time.time()
             tokens = 0
-    return total_loss.asnumpy()[0] / total_tokens
+    return total_loss.asnumpy()[0] / total_tokens, output
 
 
 
