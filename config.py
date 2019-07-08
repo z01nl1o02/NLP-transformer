@@ -20,10 +20,10 @@ TGT_VOCAB_SIZE = VOCAB_SIZE
 
 batch_size = 64
 
-pad_val = 0 #unk
+pad_val = 999 #unk
 
 src_lang, tgt_lang = "en","de"
 
-src_max_len, tgt_max_len = SRC_VOCAB_SIZE, TGT_VOCAB_SIZE
+src_max_len, tgt_max_len = 64, 64
 dataset = 'newstest2014'
 save_dir = 'custom_transformer_{}_{}_{}'.format(src_lang, tgt_lang, D_MODEL)

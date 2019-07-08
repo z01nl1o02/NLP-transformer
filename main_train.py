@@ -64,10 +64,11 @@ def score2sentence(scores, vocab):
 if __name__=="__main__":
     args = parser.parse_args()
     args.dataset = "TOY" #'IWSLT2015'
+    #args.dataset = 'IWSLT2015'
     args.src_lang = cfg.src_lang
     args.tgt_lang = cfg.tgt_lang
-    args.src_max_len = cfg.SRC_VOCAB_SIZE
-    args.tgt_max_len = cfg.TGT_VOCAB_SIZE
+    args.src_max_len = cfg.src_max_len
+    args.tgt_max_len = cfg.tgt_max_len
     args.batch_size = cfg.batch_size
     args.test_batch_size = cfg.batch_size
     print(args)
@@ -88,10 +89,16 @@ if __name__=="__main__":
     train_data_loader, val_data_loader, test_data_loader \
         = cfg.dataprocessor.make_dataloader(data_train, data_val, data_test, args,num_workers = -1)
 
+
+    # for src, tgt, src_len, tgt_len in train_data_loader:
+    #     for src_sentence, src_sentence_len in zip(src, src_len):
+    #         if (src_sentence != cfg.pad_val).sum().asnumpy()[0] != int(src_sentence_len.asnumpy()[0]):
+    #             print(src_sentence, src_sentence_len)
+    # exit(0)
     cfg.SRC_VOCAB_SIZE, cfg.TGT_VOCAB_SIZE = len(src_vocab), len(tgt_vocab)
     cfg.VOCAB_SIZE = np.maximum(cfg.SRC_VOCAB_SIZE, cfg.TGT_VOCAB_SIZE)
-    V = cfg.VOCAB_SIZE
-    criterion = LabelSmoothing(size=V, padding_idx=0, smoothing=0.0)
+    #V = cfg.VOCAB_SIZE
+    criterion = LabelSmoothing(size=cfg.TGT_VOCAB_SIZE, smoothing=0.0)
     model = make_model()
     model.collect_params().reset_ctx(cfg.ctx)
     model_opt = NoamOpt(cfg.D_MODEL, 1, 400)
@@ -102,4 +109,4 @@ if __name__=="__main__":
         val_loss,val_eval = run_epoch(val_data_loader, model, loss_func, generator = model.generator,trainer=None, lr_sch=model_opt)
         val_tgt_sentences_eval = score2sentence(val_eval, tgt_vocab)
         valid_bleu_score, _, _, _, _ = cfg.compute_bleu([val_tgt_sentences], val_tgt_sentences_eval)
-        print("val loss: ", val_loss.asnumpy()[0], "val bleu: ",valid_bleu_score * 100)
+        print("val loss: ", val_loss, "val bleu: ",valid_bleu_score)

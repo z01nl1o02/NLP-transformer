@@ -38,14 +38,14 @@ if cfg.DEBUG_ON:
 class LabelSmoothing(nn.Block):
     "Implement label smoothing."
 
-    def __init__(self, size, padding_idx, smoothing=0.0):
+    def __init__(self, size, smoothing=0.0):
         super(LabelSmoothing, self).__init__()
-        self.criterion = gloss.KLDivLoss()
-        self.padding_idx = padding_idx
+        self.criterion = gloss.KLDivLoss(from_logits=False)
+        #self.padding_idx = padding_idx
         self.confidence = 1.0 - smoothing
         self.smoothing = smoothing
         self.size = size
-        self.true_dist = None
+        #self.true_dist = None
 
     def forward(self, x, target):
         assert x.shape[1] == self.size #sequence length
@@ -56,13 +56,13 @@ class LabelSmoothing(nn.Block):
             for r, c in enumerate(target):
                 target_mask[r,c] = 1
             true_dist = nd.where(target_mask, nd.zeros_like(true_dist) + self.confidence, true_dist)
-            true_dist[:, self.padding_idx] = 0
-            mask = nd.equal(target,self.padding_idx)
+            # true_dist[:, self.padding_idx] = 0
+            # mask = nd.equal(target,self.padding_idx)
+            #
+            # if len(mask.shape) > 0:
+            #     true_dist = nd.where( nd.squeeze(mask), nd.zeros_like(true_dist) ,true_dist )
 
-            if len(mask.shape) > 0:
-                true_dist = nd.where( nd.squeeze(mask), nd.zeros_like(true_dist) ,true_dist )
-
-        self.true_dist = true_dist
+        #self.true_dist = true_dist
         return self.criterion(x, true_dist.as_in_context(cfg.ctx))
 
 if cfg.DEBUG_ON:
@@ -94,14 +94,16 @@ class SimpleLossCompute:
         self.generator = generator
         self.criterion = criterion
 
-    def __call__(self, x, y, norm, train_mode):
+    def __call__(self, x, y, train_mode):
         x = self.generator(x)
         x = nd.reshape(x, (-1, x.shape[-1]))
         y = nd.reshape(y,(-1,))
-        loss = self.criterion(x,y).sum() / norm
+        #loss = self.criterion(x,y).sum() / norm
+        loss = self.criterion(x,y).mean()
         if train_mode:
             loss.backward()
-        return loss[0] * norm
+        #return loss[0] * norm
+        return loss[0]
 
 import gluonnlp as nlp
 import data_gen as datagen
@@ -109,7 +111,7 @@ def run_epoch(data_iter, model, loss_compute, generator = None, trainer = None, 
     "Standard Training and Logging Function"
     start = time.time()
     total_tokens = 0
-    total_loss = 0
+    total_loss = []
     tokens = 0
     if trainer is None:
         train_mode = False
@@ -124,11 +126,11 @@ def run_epoch(data_iter, model, loss_compute, generator = None, trainer = None, 
             trainer.set_learning_rate(lr)
         with autograd.record(train_mode):
             out = model(batch.src.as_in_context(cfg.ctx), batch.trg.as_in_context(cfg.ctx),batch.src_mask.as_in_context(cfg.ctx), batch.trg_mask.as_in_context(cfg.ctx))
-            loss = loss_compute(out, batch.trg_y.as_in_context(cfg.ctx), batch.ntokens.as_in_context(cfg.ctx), train_mode)
-        total_loss += loss
+            loss = loss_compute(out, batch.trg_y.as_in_context(cfg.ctx), train_mode)
+        total_loss.append( loss.asnumpy()[0] )
         if generator:
             output.append( generator(out).as_in_context(mx.cpu(0)) )
-        total_tokens += batch.ntokens
+        #total_tokens += batch.ntokens
         tokens += batch.ntokens
         if trainer:
             trainer.step(1)
@@ -138,10 +140,10 @@ def run_epoch(data_iter, model, loss_compute, generator = None, trainer = None, 
             if trainer:
                 LR = trainer.learning_rate
             print("Epoch Step: %d LR: %f Loss: %f Tokens per Sec: %f" %
-                    (i,LR, loss.asnumpy()[0] / batch.ntokens.asnumpy()[0], tokens.asnumpy()[0] / elapsed))
+                    (i,LR, loss.asnumpy()[0], tokens.asnumpy()[0] / elapsed))
             start = time.time()
             tokens = 0
-    return total_loss.asnumpy()[0] / total_tokens, output
+    return sum(total_loss) / len(total_loss), output
 
 
 

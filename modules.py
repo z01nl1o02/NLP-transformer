@@ -375,10 +375,5 @@ if cfg.DEBUG_ON:
     print(tmp_model)
 
 
-
-
-
-
-
 if cfg.DEBUG_ON:
     plt.show()
